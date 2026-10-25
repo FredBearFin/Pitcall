@@ -490,11 +490,14 @@ function lsq(cooks: { rawWeight: number; hours: number }[]): (w: number) => numb
 }
 
 /** Fit blended with the owner's guess: (n*fit + 3*guess)/(n+3); constant guess if n < 2. */
+const MIN_COOK_HOURS = 0.25;
 function blendedT(cooks: { rawWeight: number; hours: number }[], guess: number): (w: number) => number {
   const n = cooks.length;
   if (n < 2) return () => guess;
   const fit = lsq(cooks);
-  return (w) => (n * fit(w) + K_PRIOR * guess) / (n + K_PRIOR);
+  // Floored: two contradictory logged cooks (10 lb in 12 h, 12 lb in 4 h) make the straight line cross zero for a
+  // heavy piece, and a negative cook time would schedule the put-on after the pull. (Z spec W5 / finding F10.)
+  return (w) => Math.max(MIN_COOK_HOURS, (n * fit(w) + K_PRIOR * guess) / (n + K_PRIOR));
 }
 
 /**
