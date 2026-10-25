@@ -8,7 +8,7 @@ Expo SDK 58 · React Native · TypeScript · SQLite on the phone · no server, n
 ```bash
 npm install
 npx expo start          # scan the QR with Expo Go, or press a/i for an emulator
-npm test                # 151 tests (engine, logic, hostile backup files, regression fixes, cook-time floor, close-out rules, trial gate, motion timings, and the real SQL against SQLite)
+npm test                # 172 tests (engine, logic, hostile backup files, regression fixes, cook-time floor, close-out rules, trial gate, motion timings, a 70-night simulation soak, and the real SQL against SQLite)
 npm run typecheck
 ```
 
