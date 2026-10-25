@@ -1,0 +1,31 @@
+{
+  "name": "pitcall",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "expo": "~58.0.14",
+    "expo-document-picker": "^58.0.4",
+    "expo-file-system": "^58.0.9",
+    "expo-notifications": "^58.1.5",
+    "expo-sharing": "^58.0.19",
+    "expo-sqlite": "^58.0.13",
+    "expo-status-bar": "~58.0.3",
+    "react": "19.3.0",
+    "react-native": "0.88.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bundle": "expo export --platform android --output-dir /tmp/pitcall-export"
+  },
+  "private": true
+}
