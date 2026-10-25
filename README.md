@@ -8,7 +8,7 @@ Expo SDK 58 · React Native · TypeScript · SQLite on the phone · no server, n
 ```bash
 npm install
 npx expo start          # scan the QR with Expo Go, or press a/i for an emulator
-npm test                # 119 tests (engine, logic, hostile backup files, regression fixes, cook-time floor, trial gate, motion timings, and the real SQL against SQLite)
+npm test                # 151 tests (engine, logic, hostile backup files, regression fixes, cook-time floor, close-out rules, trial gate, motion timings, and the real SQL against SQLite)
 npm run typecheck
 ```
 
@@ -43,6 +43,9 @@ Launch material (privacy policy, terms, store listing, and the founder checklist
 - Service, Close and Week use the service night, not the calendar day: before 4 am still belongs to the night that just ended, and Close says which night it is closing.
 - First-run intro (4 short pages, reopen it from Settings) and an "Unusual night" tick on Close that keeps a storm or event out of what the forecast learns.
 - Database moves to version 2 (adds `closed` and `unusual` to `sale`). Existing rows stay "closed", because a tap-only row from the old version cannot be told apart from a closed one. Backups carry both flags and old backups still import.
+- Close no longer saves a blank leftover as 0. A leftover is required whenever anything was cooked (a "None left" button types the 0), because a fake 0 reads as "sold exactly what was cooked" and teaches the forecast the wrong demand.
+- An 86 that the leftover contradicts (more than 15% of the cooked weight and at least 5 lb still left) saves with a warning, and its sell-out time is ignored by the forecast and the week summary, so it cannot inflate demand. Tunable: `SOLD_OUT_CONTRADICTION_PCT` and `SOLD_OUT_CONTRADICTION_MIN_LB` in `logic.ts`.
+- All Close validation now lives in `closeCheck` (pure, tested) instead of inside the screen.
 
 ## Motion
 

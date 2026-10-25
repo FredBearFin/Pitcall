@@ -212,6 +212,70 @@ export const isClosedRow = (s: Pick<SaleRecord, 'closed'>): boolean => s.closed 
  */
 export const hasDemandSignal = (s: Pick<SaleRecord, 'closed' | 'soldOutAt'>): boolean => isClosedRow(s) || s.soldOutAt != null;
 
+/** Largest weight any field may hold (lb). Keeps every saved row exportable and importable. */
+export const MAX_LB = 100000;
+
+/**
+ * An 86 and a big leftover cannot both be true: a meat that sold out should have close to nothing left. Past this much
+ * leftover the 86 time is not believed. Default: more than 15% of what was cooked, and at least 5 lb (a small remainder is
+ * normal, e.g. a last portion held back). Tunable; Z finding F8.
+ */
+export const SOLD_OUT_CONTRADICTION_PCT = 0.15;
+export const SOLD_OUT_CONTRADICTION_MIN_LB = 5;
+export const soldOutContradictionLb = (cookedLb: number): number =>
+  Math.max(SOLD_OUT_CONTRADICTION_MIN_LB, SOLD_OUT_CONTRADICTION_PCT * cookedLb);
+
+/** The sell-out time to trust: null when there is none, or when the leftover contradicts it (then demand is what actually sold). */
+export function trustedSoldOutAt(s: Pick<SaleRecord, 'soldOutAt' | 'leftoverLb' | 'cookedLb'>): number | null {
+  if (s.soldOutAt == null) return null;
+  return s.leftoverLb > soldOutContradictionLb(s.cookedLb) ? null : s.soldOutAt;
+}
+
+/** What the Close screen's leftover box starts with: the saved figure for a closed night, blank otherwise (never a fake 0). */
+export const leftoverDraftText = (s: Pick<SaleRecord, 'leftoverLb' | 'closed'> | undefined): string =>
+  s && isClosedRow(s) ? String(s.leftoverLb) : '';
+
+export type CloseCheck =
+  | { kind: 'skip' }
+  | { kind: 'error'; error: string }
+  | { kind: 'ok'; leftover: number; catering: number; warning: string | null };
+
+/**
+ * Validate one meat's Close entries. Pure, so every rule is testable.
+ *  - nothing planned, nothing typed, no row yet: skip (nothing to record)
+ *  - every weight is a plain non-negative number no bigger than MAX_LB
+ *  - leftover is REQUIRED whenever anything was cooked: a blank is not "0". A blank saved as 0 reads as "sold exactly what
+ *    was cooked" and teaches the forecast the wrong demand (Z finding F7b)
+ *  - leftover + catering cannot exceed what was cooked (F7)
+ *  - an 86 that contradicts a big leftover is allowed but warned about, and the 86 time is then ignored (F8)
+ */
+export function closeCheck(a: {
+  name: string;
+  hasPlan: boolean;
+  hasRow: boolean;
+  cookedText: string; // what was typed when there is no plan
+  cooked: number | null; // from the plan, or the parsed typed figure
+  leftoverText: string;
+  cateringText: string;
+  soldOutAt: number | null;
+}): CloseCheck {
+  if (!a.hasPlan && !a.hasRow && a.cookedText.trim() === '') return { kind: 'skip' };
+  const cat = parseNum(a.cateringText);
+  if (a.cooked === null || cat === null) return { kind: 'error', error: `${a.name}: enter plain numbers (no negatives).` };
+  const blank = a.leftoverText.trim() === '';
+  if (blank && a.cooked > 0) return { kind: 'error', error: `${a.name}: enter the leftover (tap "None left" if there was none).` };
+  const left = blank ? 0 : parseNum(a.leftoverText);
+  if (left === null) return { kind: 'error', error: `${a.name}: enter plain numbers (no negatives).` };
+  if (a.cooked > MAX_LB || left > MAX_LB || cat > MAX_LB) return { kind: 'error', error: `${a.name}: number too big.` };
+  if (left + cat > a.cooked + 0.001) {
+    return { kind: 'error', error: `${a.name}: leftover + catering is more than the ${fmtLb(a.cooked)} cooked.` };
+  }
+  const warning = a.soldOutAt != null && left > soldOutContradictionLb(a.cooked)
+    ? `${a.name}: you tapped 86 but ${fmtLb(left)} is left. Saved. Pitcall will ignore the 86 time for this night.`
+    : null;
+  return { kind: 'ok', leftover: left, catering: cat, warning };
+}
+
 /** Why a Service tap must be refused for this row, or null. "Half gone" after the 86 would store a time later than the sell-out. */
 export function stampBlocked(row: Pick<SaleRecord, 'soldOutAt'> | null | undefined, field: 'soldOutAt' | 'halfGoneAt'): string | null {
   if (field === 'halfGoneAt' && row && row.soldOutAt != null) return 'Already 86d. "Half gone" has to come before the 86.';
@@ -243,7 +307,7 @@ export function buildHistory(a: {
     const plan = planByDate.get(s.date);
     const mean = plan && plan.mean > 0 ? plan.mean : a.meat.usualGuess;
     const sigma = plan && plan.sigma > 0 ? plan.sigma : Math.max(1, 0.3 * a.meat.usualGuess);
-    const r = recoverDemand({ soldLb: walkInSold(s), soldOutAt: s.soldOutAt, F, mean, sigma });
+    const r = recoverDemand({ soldLb: walkInSold(s), soldOutAt: trustedSoldOutAt(s), F, mean, sigma });
     out.push({ date: s.date, demandLb: r.demandLb });
   }
   return out.sort((x, y) => (x.date < y.date ? -1 : 1));
@@ -357,7 +421,7 @@ export function weekSummary(a: {
     if (!meat || !s || !hasDemandSignal(s)) continue; // an unclosed, not-sold-out night has no real demand figure yet
     savedTotal += savedVsOwner({
       ownerPieces: p.ownerPieces, pitcallPieces: p.pitcallPieces, yPerPiece: p.yPerPiece, cateringLb: s.cateringLb,
-      walkInSoldLb: walkInSold(s), soldOut: s.soldOutAt != null, meat, settings: a.settings,
+      walkInSoldLb: walkInSold(s), soldOut: trustedSoldOutAt(s) != null, meat, settings: a.settings,
     });
     savedCount += 1;
   }
@@ -375,7 +439,7 @@ export function weekSummary(a: {
     let t = tally.get(s.meatId);
     if (!t) tally.set(s.meatId, (t = { times: 0, days: 0 }));
     t.days += 1;
-    if (s.soldOutAt != null) t.times += 1;
+    if (trustedSoldOutAt(s) != null) t.times += 1;
   }
   const soldOutByMeat = a.meats
     .filter((m) => tally.has(m.id))

@@ -43,7 +43,7 @@ export function T({ children, muted, style }: { children: React.ReactNode; muted
 
 /** Big numeric field with - / + steppers. Value is kept as a string so typing is free-form. */
 export function NumField(p: {
-  label: string; value: string; onChange: (v: string) => void; step?: number; editable?: boolean; unit?: string;
+  label: string; value: string; onChange: (v: string) => void; step?: number; editable?: boolean; unit?: string; placeholder?: string;
 }) {
   const step = p.step ?? 1;
   const bump = (d: number) => {
@@ -65,7 +65,7 @@ export function NumField(p: {
           onChangeText={p.onChange}
           editable={ed}
           keyboardType="decimal-pad"
-          placeholder="0"
+          placeholder={p.placeholder ?? '0'}
           placeholderTextColor={C.muted}
           selectTextOnFocus
         />
