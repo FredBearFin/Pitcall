@@ -115,6 +115,7 @@ export default function Settings({ onClose, onShowIntro }: { onClose: () => void
       if (!go) return;
       await applyBackup(data);
       await st.reload();
+      st.bumpEpoch(); // rebuild Tonight, Service, Close and Week from the restored data
       setMDrafts({}); setSDraft(null); setCurve(null);
       setMsg('Backup restored.');
     });

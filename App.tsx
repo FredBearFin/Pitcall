@@ -24,7 +24,7 @@ const OVERLAY = { position: 'absolute', top: TOP, left: 0, right: 0, bottom: 0, 
 const BANNER = { position: 'absolute', top: TOP, left: 0, right: 0, zIndex: 20, elevation: 20 } as const;
 
 function Shell() {
-  const { ready, error, setError } = useStore();
+  const { ready, error, setError, epoch } = useStore();
   const [tab, setTab] = useState<Tab>('Tonight');
   const [dir, setDir] = useState(1); // which way the next tab slides in from
   const [barW, setBarW] = useState(0);
@@ -73,7 +73,7 @@ function Shell() {
           accessibilityElementsHidden={covered}
           importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'}
         >
-          <View style={{ flex: 1 }}>
+          <View key={epoch} style={{ flex: 1 }}>
             {TABS.map((t) => (
               <TabPane key={t} active={tab === t} dx={dir * 28}>{panes[t]}</TabPane>
             ))}

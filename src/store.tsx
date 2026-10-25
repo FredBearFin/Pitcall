@@ -13,6 +13,9 @@ interface Store {
   error: string | null;
   setError: (e: string | null) => void;
   reload: () => Promise<void>;
+  /** Changes every time the stored data is replaced wholesale (a backup restore). Screens key on it so typed-but-unsaved drafts from before the restore cannot survive it. */
+  epoch: number;
+  bumpEpoch: () => void;
   /** Run an async action; any throw becomes the visible error banner. Returns undefined on failure. */
   run: <T>(fn: () => Promise<T>) => Promise<T | undefined>;
 }
@@ -33,6 +36,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [cooks, setCooks] = useState<CookRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [epoch, setEpoch] = useState(0);
+  const bumpEpoch = useCallback(() => setEpoch((n) => n + 1), []);
 
   const reload = useCallback(async () => {
     const d = await db.loadAll();
@@ -63,8 +68,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [reload, run]);
 
   const value = useMemo(
-    () => ({ ready, meats, settings, plans, sales, cooks, error, setError, reload, run }),
-    [ready, meats, settings, plans, sales, cooks, error, reload, run],
+    () => ({ ready, meats, settings, plans, sales, cooks, error, setError, reload, run, epoch, bumpEpoch }),
+    [ready, meats, settings, plans, sales, cooks, error, reload, run, epoch, bumpEpoch],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
