@@ -231,6 +231,19 @@ export function trustedSoldOutAt(s: Pick<SaleRecord, 'soldOutAt' | 'leftoverLb' 
   return s.leftoverLb > soldOutContradictionLb(s.cookedLb) ? null : s.soldOutAt;
 }
 
+/**
+ * A closed night with essentially nothing left sold out even if nobody tapped 86 (the cook forgot, or it went in the rush).
+ * "Essentially nothing" = at most 2% of what was cooked, or 0.5 lb, whichever is larger. Used only where the
+ * safe assumption is "it was demand-limited at the owner's count" (the "Pitcall found you" claim), so a forgotten tap makes that
+ * claim smaller, never bigger. Simulation: with 60% of taps forgotten the claim overstated the truth by 44% before this.
+ */
+export const RAN_OUT_PCT = 0.02;
+export const RAN_OUT_MIN_LB = 0.5;
+export function ranOut(s: Pick<SaleRecord, 'soldOutAt' | 'leftoverLb' | 'cookedLb' | 'closed'>): boolean {
+  if (trustedSoldOutAt(s) != null) return true;
+  return isClosedRow(s) && s.cookedLb > 0 && s.leftoverLb <= Math.max(RAN_OUT_MIN_LB, RAN_OUT_PCT * s.cookedLb);
+}
+
 /** What the Close screen's leftover box starts with: the saved figure for a closed night, blank otherwise (never a fake 0). */
 export const leftoverDraftText = (s: Pick<SaleRecord, 'leftoverLb' | 'closed'> | undefined): string =>
   s && isClosedRow(s) ? String(s.leftoverLb) : '';
@@ -421,7 +434,7 @@ export function weekSummary(a: {
     if (!meat || !s || !hasDemandSignal(s)) continue; // an unclosed, not-sold-out night has no real demand figure yet
     savedTotal += savedVsOwner({
       ownerPieces: p.ownerPieces, pitcallPieces: p.pitcallPieces, yPerPiece: p.yPerPiece, cateringLb: s.cateringLb,
-      walkInSoldLb: walkInSold(s), soldOut: trustedSoldOutAt(s) != null, meat, settings: a.settings,
+      walkInSoldLb: walkInSold(s), soldOut: ranOut(s), meat, settings: a.settings,
     });
     savedCount += 1;
   }

@@ -2,7 +2,7 @@
 // never saved as 0) and F8 (an 86 that contradicts a big leftover must not inflate demand).
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_SETTINGS, MAX_LB, SEED_MEATS, buildHistory, closeCheck, leftoverDraftText, soldOutContradictionLb, trustedSoldOutAt, weekSummary,
+  DEFAULT_SETTINGS, MAX_LB, SEED_MEATS, buildHistory, closeCheck, leftoverDraftText, ranOut, soldOutContradictionLb, trustedSoldOutAt, weekSummary,
 } from './logic';
 import type { PlanRecord, SaleRecord } from './types';
 
@@ -130,6 +130,44 @@ describe('F8: the forecast does not learn a false sell-out', () => {
     expect(bad.soldOutByMeat[0]).toMatchObject({ times: 0, days: 1 });
     const good = weekSummary({ ...args, sales: [row({ date: '2026-10-16', soldOutAt: 12, leftoverLb: 0 })] });
     expect(good.soldOutByMeat[0]).toMatchObject({ times: 1, days: 1 });
+  });
+});
+
+describe('ranOut: a forgotten 86 does not hide a sell-out from the "Pitcall found you" claim', () => {
+  it('a trusted 86 counts', () => {
+    expect(ranOut(row({ soldOutAt: 12, leftoverLb: 3 }))).toBe(true);
+  });
+  it('no 86 but nothing left counts as sold out', () => {
+    expect(ranOut(row({ soldOutAt: null, leftoverLb: 0 }))).toBe(true);
+    expect(ranOut(row({ soldOutAt: null, leftoverLb: 1.2 }))).toBe(true); // exactly 2% of the default 60 lb
+    expect(ranOut(row({ soldOutAt: null, cookedLb: 10, leftoverLb: 0.5 }))).toBe(true); // the 0.5 lb floor beats 2% of 10
+    expect(ranOut(row({ soldOutAt: null, cookedLb: 100, leftoverLb: 2 }))).toBe(true); // exactly 2%
+  });
+  it('no 86 and a real remainder does not', () => {
+    expect(ranOut(row({ soldOutAt: null, leftoverLb: 1.3 }))).toBe(false);
+    expect(ranOut(row({ soldOutAt: null, cookedLb: 10, leftoverLb: 0.6 }))).toBe(false);
+    expect(ranOut(row({ soldOutAt: null, cookedLb: 100, leftoverLb: 2.1 }))).toBe(false);
+    expect(ranOut(row({ soldOutAt: null, leftoverLb: 20 }))).toBe(false);
+  });
+  it('a contradicted 86 (big leftover) does not count', () => {
+    expect(ranOut(row({ soldOutAt: 12, leftoverLb: 20 }))).toBe(false);
+  });
+  it('a night that was never closed, or cooked nothing, is not a sell-out', () => {
+    expect(ranOut(row({ soldOutAt: null, leftoverLb: 0, closed: false }))).toBe(false);
+    expect(ranOut(row({ soldOutAt: null, cookedLb: 0, leftoverLb: 0 }))).toBe(false);
+  });
+  it('the week claim is smaller (never larger) when a sell-out went untapped', () => {
+    const plan: PlanRecord = {
+      date: '2026-10-16', meatId: brisket.id, ownerPieces: 9, pitcallPieces: 6, rangeLo: 5, rangeHi: 7, finalPieces: 6, mean: 50, sigma: 10, cr: 0.66,
+      cateringLb: 0, yPerPiece: 7.7, accepted: true,
+    };
+    const args = { today: '2026-10-17', meats: SEED_MEATS, settings: DEFAULT_SETTINGS, plans: [plan] };
+    // Pitcall cooked 6 (46.2 lb) and sold every pound; the owner would have cooked 9 (69.3 lb). Without the rescue the app
+    // would read demand as exactly 46.2 and claim the owner wasted 23 lb; with it, demand is at least the owner's capacity.
+    const forgot = weekSummary({ ...args, sales: [row({ date: '2026-10-16', cookedLb: 46.2, leftoverLb: 0, soldOutAt: null })] });
+    const tapped = weekSummary({ ...args, sales: [row({ date: '2026-10-16', cookedLb: 46.2, leftoverLb: 0, soldOutAt: 14 })] });
+    expect(forgot.savedTotal).toBeCloseTo(tapped.savedTotal, 6);
+    expect(forgot.savedTotal).toBeLessThan(0.01 + 0); // Pitcall under-cooked relative to demand >= owner's 69 lb: no savings to claim
   });
 });
 
