@@ -86,8 +86,9 @@ export function drawRestaurant(sc: Scenario, meats: Meat[], seed: number): Draws
   const ownerNoise: number[][] = [];
   const tapMiss: number[][] = [];
   const sig = Math.sqrt(Math.log(1 + sc.cv * sc.cv));
+  const startOffset = Math.floor(rnd() * 7); // a real restaurant starts using the app on any weekday, not always a slow Monday
   for (let t = 0; t < sc.nights; t++) {
-    const date = addDays(START_DATE, t);
+    const date = addDays(START_DATE, startOffset + t);
     dates.push(date);
     const wk = WEEKDAY[dayOfWeek(date)];
     const row: number[] = [];
