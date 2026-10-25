@@ -8,7 +8,7 @@ Expo SDK 58 · React Native · TypeScript · SQLite on the phone · no server, n
 ```bash
 npm install
 npx expo start          # scan the QR with Expo Go, or press a/i for an emulator
-npm test                # 102 tests (engine, logic, hostile backup files, regression fixes, motion timings, and the real SQL against SQLite)
+npm test                # 105 tests (engine, logic, hostile backup files, regression fixes, cook-time floor, motion timings, and the real SQL against SQLite)
 npm run typecheck
 ```
 
@@ -60,3 +60,7 @@ Written without a device run: look at it on a real phone before judging the feel
 Not run on a real device yet (the SQL is tested against SQLite, but expo-sqlite, notifications, the screens and the animations are not). Not built: event/holiday calendar screen,
 all-meat weekday factor, multiple leftover outlets, week profit/break-even, per-piece weights (so "largest piece first" is not a thing yet), billing and the trial,
 a web build. Step 1 uses a single conditional-expectation pass rather than iterated EM. Lint is not set up.
+
+## License
+
+Proprietary. All rights reserved (see `LICENSE`).

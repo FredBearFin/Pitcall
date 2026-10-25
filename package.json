@@ -25,7 +25,8 @@
     "web": "expo start --web",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "bundle": "expo export --platform android --output-dir /tmp/pitcall-export"
+    "bundle": "expo export --platform android --output-dir dist"
   },
-  "private": true
+  "private": true,
+  "license": "UNLICENSED"
 }
