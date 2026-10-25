@@ -22,6 +22,8 @@ const mean = (xs: number[]) => (xs.length ? sum(xs) / xs.length : 0);
 
 /** Shrinkage weight (days of evidence the owner's guess is worth). */
 const K_PRIOR = 3;
+/** Nights of history needed before the owner's typed "usual night" guess has its LEVEL corrected by the data (one full week = every weekday seen). */
+const LEVEL_MIN_NIGHTS = 7;
 /** Quarter-pound units per lb: the NB distribution lives on these. */
 const UNITS = 4;
 /** Forecast works off at most this many recent baseline days, and the sigma backtest uses at most MAX_MISSES recent misses. */
@@ -271,9 +273,20 @@ export function forecastDemand(a: {
     }
   }
 
+  // The typed guess is weekday-blind and may be well off. Shrinking toward it with a fixed weight kept a bad guess alive for
+  // months (simulation: guess 30% too high, still losing to the owner's gut at night 28). So once a full week has been seen,
+  // correct the guess's LEVEL with every night so far (not only same-weekday ones), give it this weekday's damped factor, and
+  // shrink toward that. Under 7 nights, and on the very first night, this is exactly the old usualGuess prior.
   let mu: number;
   if (sf.value === null) mu = a.usualGuess;
-  else mu = (nSame * sf.value * lift + K_PRIOR * a.usualGuess) / (nSame + K_PRIOR);
+  else {
+    const f = weekdayFactors(base);
+    const nLevel = base.length >= LEVEL_MIN_NIGHTS ? base.length : 0;
+    const dsMean = nLevel > 0 ? mean(base.map((p) => p.y / f[weekdayOf(p.day)])) : a.usualGuess;
+    const level = (nLevel * dsMean + K_PRIOR * a.usualGuess) / (nLevel + K_PRIOR);
+    const prior = nLevel > 0 ? level * f[weekdayOf(target)] : a.usualGuess;
+    mu = (nSame * sf.value * lift + K_PRIOR * prior) / (nSame + K_PRIOR);
+  }
 
   // Walk-forward one-day-ahead misses.
   const misses: number[] = [];

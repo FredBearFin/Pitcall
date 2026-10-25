@@ -175,6 +175,35 @@ describe('forecastDemand', () => {
     expect(tue.mean).toBeLessThan(50);
     expect(sat.nSameWeekday).toBe(8);
   });
+  describe('the typed usual-night guess is level-corrected after a full week (simulation finding: a bad guess lingered for months)', () => {
+    it('under 7 nights of history the guess anchors exactly as before', () => {
+      const six = days('2026-10-17', 6, () => 30); // Sat 10-17 not yet seen: nSame = 0, so the forecast IS the prior
+      expect(forecastDemand({ history: six, date: '2026-10-17', usualGuess: 90 }).mean).toBe(90);
+    });
+    it('a guess 3x too high is pulled down toward what the nights show, far below the old fixed-weight answer', () => {
+      const hist = days('2026-10-17', 28, () => 30);
+      const f = forecastDemand({ history: hist, date: '2026-10-17', usualGuess: 90 });
+      // old formula: (4*30 + 3*90)/7 = 55.7. level-corrected: level = (28*30 + 3*90)/31 = 35.8 -> (4*30 + 3*35.8)/7 = 32.5
+      expect(f.mean).toBeGreaterThan(30);
+      expect(f.mean).toBeLessThan(36);
+    });
+    it('a guess 3x too low is pulled up the same way', () => {
+      const hist = days('2026-10-17', 28, () => 90);
+      const f = forecastDemand({ history: hist, date: '2026-10-17', usualGuess: 30 });
+      expect(f.mean).toBeGreaterThan(80); // old formula gave (4*90 + 3*30)/7 = 64.3
+      expect(f.mean).toBeLessThan(90);
+    });
+    it('a right guess is left alone', () => {
+      const hist = days('2026-10-17', 28, () => 50);
+      expect(forecastDemand({ history: hist, date: '2026-10-17', usualGuess: 50 }).mean).toBeCloseTo(50, 6);
+    });
+    it('a weekday that is genuinely busier still comes out busier (the level fix does not flatten the week)', () => {
+      const hist = days('2026-10-17', 56, (_d, wd) => (wd === 6 ? 100 : 40));
+      const sat = forecastDemand({ history: hist, date: '2026-10-17', usualGuess: 90 });
+      const tue = forecastDemand({ history: hist, date: '2026-10-20', usualGuess: 90 });
+      expect(sat.mean / tue.mean).toBeGreaterThan(1.8);
+    });
+  });
   it('sigma sits at its floor for constant data and is bigger for noisy data', () => {
     const flat = days('2026-10-17', 40, () => 50);
     const f = forecastDemand({ history: flat, date: '2026-10-17', usualGuess: 50 });
