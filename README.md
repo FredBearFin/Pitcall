@@ -8,12 +8,14 @@ Expo SDK 58 · React Native · TypeScript · SQLite on the phone · no server, n
 ```bash
 npm install
 npx expo start          # scan the QR with Expo Go, or press a/i for an emulator
-npm test                # 105 tests (engine, logic, hostile backup files, regression fixes, cook-time floor, motion timings, and the real SQL against SQLite)
+npm test                # 119 tests (engine, logic, hostile backup files, regression fixes, cook-time floor, trial gate, motion timings, and the real SQL against SQLite)
 npm run typecheck
 ```
 
 If put-on alarms don't fire in Expo Go, build a development client instead:
-`npx expo run:android` (or `eas build --profile development`).
+`npx expo run:android` (or `npx eas-cli@latest build --profile development --platform android`; profiles are in `eas.json`).
+
+Launch material (privacy policy, terms, store listing, and the founder checklist) is in `docs/launch/`.
 
 ## Layout
 
