@@ -18,6 +18,12 @@ const SC: Scenario[] = [
   { ...BASE, label: 'Cook forgets to tap 86 on 60% of sell-outs', tapMissRate: 0.6 },
   { ...BASE, label: 'Very noisy demand (CV 50%)', cv: 0.5 },
   { ...BASE, label: 'Tight smoker (20 slots; seed meats need about 28 on a normal night)', smokerSlots: 20 },
+  { ...BASE, label: 'Only 75% of a sell-out is really lost (the rest order another meat)', trueLostShare: 0.75 },
+  { ...BASE, label: 'Only 50% of a sell-out is really lost', trueLostShare: 0.5 },
+  { ...BASE, label: 'Only 25% of a sell-out is really lost', trueLostShare: 0.25 },
+  { ...BASE, label: 'OLD MATH (assumed 100% lost) when 100% is lost', appLostShare: 1, trueLostShare: 1 },
+  { ...BASE, label: 'OLD MATH (assumed 100% lost) when only 50% is lost', appLostShare: 1, trueLostShare: 0.5 },
+  { ...BASE, label: 'OLD MATH (assumed 100% lost) when only 25% is lost', appLostShare: 1, trueLostShare: 0.25 },
 ];
 const $ = (x: number) => `${x < 0 ? '-' : '+'}$${Math.abs(x).toFixed(0)}`;
 run('simulation report', () => {

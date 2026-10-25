@@ -243,6 +243,43 @@ describe('forecastDemand', () => {
   });
 });
 
+describe('lost-sale share: running out only loses part of a sale when customers order something else', () => {
+  const meat: Meat = { ...brisket };
+  const plain = { ...settings, cardFee: 0, packaging: 0 };
+  const withShare = (x: number | undefined) => ({ ...plain, lostSaleShare: x });
+  it('a missing share behaves exactly as share 1 (old data, old backups, old tests)', () => {
+    const a = chooseCount({ mean: 60, sigma: 12, meat, settings: withShare(undefined), cateringLb: 0 });
+    const b = chooseCount({ mean: 60, sigma: 12, meat, settings: withShare(1), cateringLb: 0 });
+    expect(a.table.map((r) => r.profit)).toEqual(b.table.map((r) => r.profit));
+    expect([a.nStar, a.rangeLo, a.rangeHi, a.cr]).toEqual([b.nStar, b.rangeLo, b.rangeHi, b.cr]);
+  });
+  it('garbage shares (0, negative, above 1, NaN) fall back to 1 rather than cooking nothing or more', () => {
+    const one = chooseCount({ mean: 60, sigma: 12, meat, settings: withShare(1), cateringLb: 0 });
+    for (const bad of [0, -0.5, 1.5, Number.NaN]) {
+      expect(chooseCount({ mean: 60, sigma: 12, meat, settings: withShare(bad), cateringLb: 0 }).nStar).toBe(one.nStar);
+    }
+  });
+  it('underage cost is share x margin - cost, so the critical ratio and the count fall as the share falls', () => {
+    const full = chooseCount({ mean: 60, sigma: 12, meat, settings: withShare(1), cateringLb: 0 });
+    const part = chooseCount({ mean: 60, sigma: 12, meat, settings: withShare(0.7), cateringLb: 0 });
+    const c = meat.rawCost / meat.yield;
+    expect(part.Cu).toBeCloseTo(0.7 * meat.price - c, 9);
+    expect(part.cr).toBeLessThan(full.cr);
+    expect(part.nStar).toBeLessThan(full.nStar);
+    expect(part.rangeHi).toBeLessThanOrEqual(full.rangeHi);
+  });
+  it('the profit table credits the customers who order something else: cooking nothing earns (1 - share) x margin x demand', () => {
+    const r = chooseCount({ mean: 60, sigma: 12, meat, settings: withShare(0.7), cateringLb: 0 });
+    expect(r.table[0].profit).toBeCloseTo(0.3 * meat.price * 60, 6);
+  });
+  it('realizedProfit credits the same substitute sales on a shortfall, and nothing when demand was met', () => {
+    const base = realizedProfit({ capacityLb: 40, demandLb: 60, meat, settings: withShare(1) });
+    const part = realizedProfit({ capacityLb: 40, demandLb: 60, meat, settings: withShare(0.7) });
+    expect(part - base).toBeCloseTo(0.3 * meat.price * 20, 6);
+    expect(realizedProfit({ capacityLb: 70, demandLb: 60, meat, settings: withShare(0.7) })).toBeCloseTo(realizedProfit({ capacityLb: 70, demandLb: 60, meat, settings: withShare(1) }), 9);
+  });
+});
+
 describe('fitToSlots', () => {
   const ribs: Meat = { ...brisket, id: 'ribs', rawWeight: 4, yield: 0.6, price: 24, rawCost: 4, slots: 1, leftoverValue: 0 };
   const meats = [brisket, ribs];

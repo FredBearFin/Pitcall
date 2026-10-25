@@ -115,6 +115,10 @@ export const SETTINGS_FIELDS: FieldSpec[] = [
   { key: 'closeHour', label: 'Close hour (20 = 8pm)', min: 0, max: 24 },
   { key: 'restHours', label: 'Rest hours after pull', min: 0, max: 24 },
   { key: 'onTimeZ', label: 'On-time z (1.28 = 90%)', min: 0, max: 5 },
+  {
+    key: 'lostSaleShare', label: 'Sale really lost if you run out (0.7 = 70%)', min: 0.4, max: 1,
+    hint: '1 = every customer walks away. Lower = some order another meat instead, so Pitcall cooks less and wastes less.',
+  },
 ];
 
 function checkField(f: FieldSpec, raw: string): { v?: number; err?: string } {
@@ -172,6 +176,7 @@ export function validateSettingsDraft(
     settings: {
       smokerSlots: vals.smokerSlots, cardFee: vals.cardFee, packaging: vals.packaging, openHour: vals.openHour,
       closeHour: vals.closeHour, restHours: vals.restHours, curve: curve as CurveKind, onTimeZ: vals.onTimeZ,
+      lostSaleShare: vals.lostSaleShare,
     },
   };
 }
@@ -181,8 +186,15 @@ export function isCurve(x: unknown): x is CurveKind {
 }
 
 // ---------------------------------------------------------------- defaults
+/**
+ * Default share of a sale that is really lost when a meat runs out. 1 would treat every 86 as a customer walking away, which
+ * made Pitcall over-cook (simulation: with only half the sales truly lost, it lost $28 a night to the owner's gut). 0.7 costs
+ * almost nothing if every sell-out really is lost and stays ahead of the owner down to a true share of about 0.5.
+ */
+export const DEFAULT_LOST_SALE_SHARE = 0.7;
 export const DEFAULT_SETTINGS: Settings = {
   smokerSlots: 12, cardFee: 0.03, packaging: 0.5, openHour: 11, closeHour: 20, restHours: 1, curve: 'lunch', onTimeZ: 1.28,
+  lostSaleShare: DEFAULT_LOST_SALE_SHARE,
 };
 
 export const SEED_MEATS: Meat[] = [
@@ -460,6 +472,16 @@ export function weekSummary(a: {
   return { from, to: a.today, savedTotal, savedCount, thrownLb, thrownDollars, soldOutByMeat };
 }
 
+/**
+ * How the Week screen words the savings figure. The figure is a deliberately cautious lower bound (when a meat runs out the app
+ * cannot see what would have sold, so it counts the worst case against itself). Simulation: that bound is negative in over half
+ * of weeks even when the true gain is large. A negative bound is therefore "cannot prove a gain", never "Pitcall cost you".
+ */
+export function moneyHeadline(savedTotal: number, savedCount: number): { kind: 'gain' | 'unproven'; amount: number } {
+  if (savedCount > 0 && savedTotal < 0) return { kind: 'unproven', amount: 0 };
+  return { kind: 'gain', amount: Math.max(0, savedTotal) };
+}
+
 // ---------------------------------------------------------------- backup (untrusted-input validator)
 export const BACKUP_APP = 'pitcall-backup';
 export const BACKUP_VERSION = 1;
@@ -550,7 +572,9 @@ function checkSettings(x: unknown): R<Settings> {
   const closeHour = g('closeHour', 0, 24);
   const restHours = g('restHours', 0, 24);
   const onTimeZ = g('onTimeZ', 0, 5);
-  if ([smokerSlots, cardFee, packaging, openHour, closeHour, restHours, onTimeZ].some((v) => v === null)) return bad('settings has an out-of-range value');
+  // Settings saved before this field existed have none: they get the default. A present but out-of-range value is rejected.
+  const lostSaleShare = x.lostSaleShare === undefined ? DEFAULT_LOST_SALE_SHARE : g('lostSaleShare', 0.4, 1);
+  if ([lostSaleShare, smokerSlots, cardFee, packaging, openHour, closeHour, restHours, onTimeZ].some((v) => v === null)) return bad('settings has an out-of-range value');
   if ((closeHour as number) <= (openHour as number)) return bad('settings: close must be after open');
   if (!isCurve(x.curve)) return bad('settings.curve invalid');
   return {
@@ -558,6 +582,7 @@ function checkSettings(x: unknown): R<Settings> {
     value: {
       smokerSlots: smokerSlots as number, cardFee: cardFee as number, packaging: packaging as number, openHour: openHour as number,
       closeHour: closeHour as number, restHours: restHours as number, curve: x.curve, onTimeZ: onTimeZ as number,
+      lostSaleShare: lostSaleShare as number,
     },
   };
 }

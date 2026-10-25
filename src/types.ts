@@ -37,6 +37,8 @@ export interface Settings {
   restHours: number;      // R: rest time after pulling, hours
   curve: CurveKind;       // owner-picked demand curve until half-gone taps exist
   onTimeZ: number;        // z, default 1.28 (~90% ready on time)
+  /** Share of a sale that is really lost when a meat runs out (the rest of those customers order another meat). 1 = every shortfall is a lost sale. Missing means 1, so old data and old tests behave as before. */
+  lostSaleShare?: number;
 }
 
 /** One day of recovered walk-in demand for a meat (fed to the forecast). */

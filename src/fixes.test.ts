@@ -15,7 +15,7 @@ const hist = (sales: SaleRecord[]) =>
   buildHistory({ meat: brisket, settings: DEFAULT_SETTINGS, sales, plans: [], beforeDate: '2026-10-30' });
 
 describe('defect 1: the headline count is never outside the good range', () => {
-  const plain = { ...DEFAULT_SETTINGS, cardFee: 0, packaging: 0 };
+  const plain = { ...DEFAULT_SETTINGS, cardFee: 0, packaging: 0, lostSaleShare: 1 }; // the spec's worked examples assume every shortfall is a lost sale
 
   it("pinned case: a capped leftover outlet used to push the headline to 10 beside a good range of 8 to 9", () => {
     const meat = { ...brisket, leftoverValue: 6, leftoverCap: 5 };

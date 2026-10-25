@@ -109,8 +109,15 @@ describe('meat and settings validation', () => {
     expect(validateMeatDraft({ ...good, yield: '1' }, 'b').ok).toBe(true);
   });
   it('settings', () => {
-    const s = { smokerSlots: '12', cardFee: '0.03', packaging: '0.5', openHour: '11', closeHour: '20', restHours: '1', onTimeZ: '1.28' };
+    const s = { smokerSlots: '12', cardFee: '0.03', packaging: '0.5', openHour: '11', closeHour: '20', restHours: '1', onTimeZ: '1.28', lostSaleShare: '0.7' };
     expect(validateSettingsDraft(s, 'lunch').ok).toBe(true);
+    expect(validateSettingsDraft({ ...s, lostSaleShare: '1' }, 'lunch').ok).toBe(true);
+    expect(validateSettingsDraft({ ...s, lostSaleShare: '0.4' }, 'lunch').ok).toBe(true);
+    expect(validateSettingsDraft({ ...s, lostSaleShare: '0.3' }, 'lunch').ok).toBe(false); // below the point where some meats stop paying to cook
+    expect(validateSettingsDraft({ ...s, lostSaleShare: '1.1' }, 'lunch').ok).toBe(false);
+    expect(validateSettingsDraft({ ...s, lostSaleShare: '' }, 'lunch').ok).toBe(false);
+    const r = validateSettingsDraft(s, 'lunch');
+    expect(r.ok && r.settings.lostSaleShare).toBe(0.7);
     expect(validateSettingsDraft({ ...s, closeHour: '9' }, 'lunch').ok).toBe(false);
     expect(validateSettingsDraft(s, 'bogus').ok).toBe(false);
     expect(validateSettingsDraft({ ...s, cardFee: '-1' }, 'lunch').ok).toBe(false);
@@ -130,6 +137,25 @@ describe('backup validator (untrusted input)', () => {
     const r = ok(base());
     expect(r.ok).toBe(true);
     if (r.ok) { expect(r.value.meats).toHaveLength(5); expect(r.value.sales[0].meatId).toBe('brisket'); }
+  });
+  it('a backup or saved settings from before lostSaleShare existed loads, and gets the default (never resets to factory)', () => {
+    const b = base();
+    b.settings.smokerSlots = 33; // a customised value that must survive
+    delete b.settings.lostSaleShare;
+    const r = ok(b);
+    expect(r.ok).toBe(true);
+    if (r.ok) { expect(r.value.settings.lostSaleShare).toBe(0.7); expect(r.value.settings.smokerSlots).toBe(33); }
+  });
+  it('lostSaleShare survives a round trip and a present-but-bad value is rejected', () => {
+    const b = base();
+    b.settings.lostSaleShare = 0.55;
+    const r = ok(b);
+    expect(r.ok && r.value.settings.lostSaleShare).toBe(0.55);
+    for (const bad of [0, 0.39, 1.01, -1, 'x', null]) {
+      const c = base();
+      c.settings.lostSaleShare = bad;
+      expect(ok(c).ok).toBe(false);
+    }
   });
   it('rejects garbage and wrong shapes', () => {
     expect(parseBackupText('not json').ok).toBe(false);

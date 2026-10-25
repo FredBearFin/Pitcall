@@ -4,7 +4,7 @@ import { C } from '../theme';
 import { useStore } from '../store';
 import { Card, H, T } from '../ui';
 import { CountText, usePaneActive } from '../motion';
-import { cookAccuracy, fmtDay, fmtLb, fmtMoney, serviceClock, weekSummary } from '../logic';
+import { cookAccuracy, fmtDay, fmtLb, fmtMoney, moneyHeadline, serviceClock, weekSummary } from '../logic';
 
 export default function Week() {
   const { meats, settings, plans, sales, cooks } = useStore();
@@ -12,7 +12,8 @@ export default function Week() {
   const today = serviceClock(new Date()).date; // same night rule as Service and Close
   const w = weekSummary({ today, meats, settings, plans, sales });
   const acc = cookAccuracy(cooks, meats);
-  const good = w.savedTotal >= 0;
+  const head = moneyHeadline(w.savedTotal, w.savedCount);
+  const good = head.kind === 'gain';
   // Keyed on whether this tab is showing, so the money figures count up from zero each time the tab opens.
   const replay = active ? 'on' : 'off';
   return (
@@ -22,13 +23,19 @@ export default function Week() {
 
       <Card index={0} style={{ marginTop: 14 }}>
         <T muted>Money</T>
-        <Text style={{ color: good ? C.green : C.red, fontSize: 34, fontWeight: '900', marginTop: 4 }}>
-          Pitcall found you <CountText key={replay} from={0} value={w.savedTotal} format={fmtMoney} />
-        </Text>
+        {good ? (
+          <Text style={{ color: C.green, fontSize: 34, fontWeight: '900', marginTop: 4 }}>
+            Pitcall found you <CountText key={replay} from={0} value={head.amount} format={fmtMoney} />
+          </Text>
+        ) : (
+          <Text style={{ color: C.text, fontSize: 24, fontWeight: '800', marginTop: 4 }}>Pitcall can't prove a gain this week</Text>
+        )}
         <T muted>
           {w.savedCount === 0
             ? 'Type your own number on Tonight and fill in Close, and this fills in.'
-            : `Counted over ${w.savedCount} meat-night${w.savedCount === 1 ? '' : 's'} where you typed your number first.`}
+            : good
+              ? `Counted over ${w.savedCount} meat-night${w.savedCount === 1 ? '' : 's'} where you typed your number first.`
+              : `Counted over ${w.savedCount} meat-night${w.savedCount === 1 ? '' : 's'}. When a meat runs out, Pitcall cannot see what you would have sold, so it counts the worst case against itself. That is not the same as saying your number was better.`}
         </T>
       </Card>
 

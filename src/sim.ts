@@ -53,6 +53,10 @@ export interface Scenario {
   tapMissRate: number;
   /** Smoker capacity in slots. The app's default (12) is smaller than the seed meats need on a normal night, so the base case uses a roomy smoker. */
   smokerSlots: number;
+  /** Share of unmet demand that is really lost (the rest buys another meat at the same margin). The old math assumed 1. Default 1. */
+  trueLostShare?: number;
+  /** What the planner is told the lost-sale share is. Default: the app's own default (DEFAULT_LOST_SALE_SHARE). */
+  appLostShare?: number;
   nights: number;
   restaurants: number;
 }
@@ -70,7 +74,7 @@ export interface NightMeat {
   soldOut: boolean; leftoverLb: number; recoveredLb: number | null; claimedSaved: number | null; trueSaved: number | null;
   mean: number; sigma: number; nStar: number; rangeLo: number; rangeHi: number; slotsUsed: number;
 }
-export interface RunOut { nights: NightMeat[][]; /** per night, per meat */ }
+export interface RunOut { nights: NightMeat[][]; /** per night, per meat */ sales: SaleRecord[]; plans: PlanRecord[]; settings: Settings; meats: Meat[] }
 
 interface Draws { demand: number[][]; ownerNoise: number[][]; tapMiss: number[][]; dates: string[]; }
 
@@ -144,7 +148,9 @@ function trimToSmoker(pieces: Record<string, number>, meats: Meat[], totalSlots:
 export type Policy = 'pitcall' | 'owner';
 
 export function runWorld(sc: Scenario, policy: Policy, seed: number, meats: Meat[] = SEED_MEATS, base: Settings = DEFAULT_SETTINGS): RunOut {
-  const settings: Settings = { ...base, smokerSlots: sc.smokerSlots };
+  // What the planner is told about lost sales (settings.lostSaleShare) versus what is really true in this restaurant.
+  const settings: Settings = { ...base, smokerSlots: sc.smokerSlots, lostSaleShare: sc.appLostShare ?? base.lostSaleShare };
+  const truth: Settings = { ...settings, lostSaleShare: sc.trueLostShare ?? 1 };
   const dr = drawRestaurant(sc, meats, seed);
   const Ftrue = curveF(sc.trueCurve, settings.openHour, settings.closeHour, null);
   const sales: SaleRecord[] = [];
@@ -184,7 +190,7 @@ export function runWorld(sc: Scenario, policy: Policy, seed: number, meats: Meat
       };
       sales.push(sale);
       plans.push(plan);
-      const profit = realizedProfit({ capacityLb: K, demandLb: D, meat: m, settings });
+      const profit = realizedProfit({ capacityLb: K, demandLb: D, meat: m, settings: truth });
       let claimed: number | null = null;
       let trueSaved: number | null = null;
       if (policy === 'pitcall') {
@@ -192,7 +198,7 @@ export function runWorld(sc: Scenario, policy: Policy, seed: number, meats: Meat
           ownerPieces: ownerFit[m.id], pitcallPieces: pieces, yPerPiece: Y, cateringLb: 0, walkInSoldLb: sale.cookedLb - sale.leftoverLb,
           soldOut: ranOut(sale), meat: m, settings,
         });
-        trueSaved = profit - realizedProfit({ capacityLb: ownerFit[m.id] * Y, demandLb: D, meat: m, settings });
+        trueSaved = profit - realizedProfit({ capacityLb: ownerFit[m.id] * Y, demandLb: D, meat: m, settings: truth });
       }
       row.push({
         date, meatId: m.id, demandLb: D, cookedLb: K, pieces, ownerPieces: ownerFit[m.id], profit, soldOut, leftoverLb: leftover, recoveredLb: null,
@@ -202,7 +208,7 @@ export function runWorld(sc: Scenario, policy: Policy, seed: number, meats: Meat
     });
     nights.push(row);
   }
-  return { nights };
+  return { nights, sales, plans, settings, meats };
 }
 
 // ------------------------------------------------------------------ summaries

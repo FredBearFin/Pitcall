@@ -314,16 +314,26 @@ export function forecastDemand(a: {
 // Steps 3 and 4: economics and the newsvendor count
 // ---------------------------------------------------------------------
 
-/** Per-meat unit economics: Y, c, margin m, Cu, Co, cr. */
+/** Share of an unmet sale that is really lost (the rest orders another meat). Missing means 1, the old behaviour. */
+const lostShare = (settings: Settings): number => {
+  const s = settings.lostSaleShare;
+  return typeof s === 'number' && Number.isFinite(s) && s > 0 && s <= 1 ? s : 1;
+};
+
+/**
+ * Per-meat unit economics: Y, c, margin m, Cu, Co, cr. With lost-sale share s, running out loses only s of the margin
+ * (the other customers buy something else), so the underage cost is s*m - c instead of m - c. s = 1 is the plain newsvendor.
+ */
 function econ(meat: Meat, settings: Settings) {
   const Y = meat.rawWeight * meat.yield;
   const c = meat.yield > 0 ? meat.rawCost / meat.yield : 0;
   const m = meat.price * (1 - settings.cardFee) - settings.packaging;
-  const Cu = m - c;
+  const s = lostShare(settings);
+  const Cu = s * m - c;
   const Co = c - leftoverTerms(meat).v; // an outlet with cap 0 absorbs nothing, so it adds no value
   let cr = 0;
   if (Cu > 0 && Cu + Co > 0) cr = clamp(Cu / (Cu + Co), 0, 0.95);
-  return { Y, c, m, Cu, Co, cr };
+  return { Y, c, m, s, Cu, Co, cr };
 }
 
 /** Effective leftover value per lb and cap (0 when no outlet). */
@@ -348,7 +358,7 @@ export function chooseCount(a: {
   cateringLb: number;
 }): CountResult {
   const { meat, settings, cateringLb } = a;
-  const { Y, c, m, Cu, Co, cr } = econ(meat, settings);
+  const { Y, c, m, s, Cu, Co, cr } = econ(meat, settings);
   const { v, cap } = leftoverTerms(meat);
   const d = nbDist(a.mean, a.sigma);
   const nMax = Y > 0 ? Math.ceil((Math.max(a.mean, 0) + 6 * Math.max(a.sigma, 0) + cateringLb) / Y) + 2 : 0;
@@ -370,7 +380,8 @@ export function chooseCount(a: {
     const expSold = (s1At(i) + K * UNITS * (1 - cdfAt(i))) / UNITS; // E[min(D,K)]
     table.push({
       n,
-      profit: m * expSold + v * leftover - c * K,
+      // Sold lb earn m. Unmet demand earns m only on the (1 - s) share who order another meat instead.
+      profit: s * m * expSold + (1 - s) * m * Math.max(a.mean, 0) + v * leftover - c * K,
       pSellOut: 1 - probLE(d, K),
       expLeftoverLb: Math.max(0, expL),
     });
@@ -577,11 +588,11 @@ export function realizedProfit(a: {
   meat: Meat;
   settings: Settings;
 }): number {
-  const { c, m } = econ(a.meat, a.settings);
+  const { c, m, s } = econ(a.meat, a.settings);
   const { v, cap } = leftoverTerms(a.meat);
   const K = Math.max(a.capacityLb, 0);
   const D = a.demandLb;
-  return m * Math.min(D, K) + v * Math.min(Math.max(K - D, 0), cap) - c * K;
+  return m * Math.min(D, K) + (1 - s) * m * Math.max(D - K, 0) + v * Math.min(Math.max(K - D, 0), cap) - c * K;
 }
 
 /**

@@ -2,7 +2,7 @@
 // never saved as 0) and F8 (an 86 that contradicts a big leftover must not inflate demand).
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_SETTINGS, MAX_LB, SEED_MEATS, buildHistory, closeCheck, leftoverDraftText, ranOut, soldOutContradictionLb, trustedSoldOutAt, weekSummary,
+  DEFAULT_SETTINGS, MAX_LB, SEED_MEATS, buildHistory, closeCheck, leftoverDraftText, moneyHeadline, ranOut, soldOutContradictionLb, trustedSoldOutAt, weekSummary,
 } from './logic';
 import type { PlanRecord, SaleRecord } from './types';
 
@@ -168,6 +168,22 @@ describe('ranOut: a forgotten 86 does not hide a sell-out from the "Pitcall foun
     const tapped = weekSummary({ ...args, sales: [row({ date: '2026-10-16', cookedLb: 46.2, leftoverLb: 0, soldOutAt: 14 })] });
     expect(forgot.savedTotal).toBeCloseTo(tapped.savedTotal, 6);
     expect(forgot.savedTotal).toBeLessThan(0.01 + 0); // Pitcall under-cooked relative to demand >= owner's 69 lb: no savings to claim
+  });
+});
+
+describe('moneyHeadline: a cautious lower bound is never shown as a loss', () => {
+  it('a positive figure is shown as a gain', () => {
+    expect(moneyHeadline(125.5, 12)).toEqual({ kind: 'gain', amount: 125.5 });
+  });
+  it('a negative figure with nights counted is "cannot prove", not a negative dollar amount', () => {
+    expect(moneyHeadline(-40, 9)).toEqual({ kind: 'unproven', amount: 0 });
+    expect(moneyHeadline(-0.01, 1).kind).toBe('unproven');
+  });
+  it('nothing counted yet keeps the existing empty-state behaviour (a zero gain with the how-to note)', () => {
+    expect(moneyHeadline(0, 0)).toEqual({ kind: 'gain', amount: 0 });
+  });
+  it('exactly zero over counted nights is a zero gain, not "cannot prove"', () => {
+    expect(moneyHeadline(0, 5)).toEqual({ kind: 'gain', amount: 0 });
   });
 });
 
